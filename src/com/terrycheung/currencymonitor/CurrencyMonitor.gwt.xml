@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.7.0//EN"
+  "http://gwtproject.org/doctype/2.7.0/gwt-module.dtd">
+<module rename-to='currencymonitor'>
+  <inherits name='com.google.gwt.user.User'/>
+  <inherits name='com.google.gwt.user.theme.standard.Standard'/>
+  <!-- <inherits name="com.google.gwt.user.theme.chrome.Chrome"/> -->
+  <inherits name="com.google.gwt.user.theme.dark.Dark"/>
+  <!-- <inherits name="com.google.gwt.http.HTTP"/> -->
+  <inherits name="com.google.gwt.json.JSON" />
+  <!-- <inherits name='com.google.gwt.visualization.Visualization'/> -->
+  <!-- Specify the app entry point class. -->
+  <entry-point class='com.terrycheung.currencymonitor.client.CurrencyMonitor'/>
+  <!-- Specify the paths for translatable code -->
+  <source path='client'/>
+  <source path='shared'/>
+  <source path='model'/>
+  <!-- specify the paths for external javascript files -->
+  <!-- <script src="js-url" /> -->
+
+  <!-- specify the paths for external style sheet files  -->
+  <!-- <stylesheet  src="css-url" /> -->
+  <!-- allow Super Dev Mode -->
+  <add-linker name="xsiframe"/>
+</module>
