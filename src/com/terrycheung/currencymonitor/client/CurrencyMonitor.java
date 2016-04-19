@@ -56,7 +56,7 @@ public class CurrencyMonitor implements EntryPoint {
 	private String baseDollar = "HKD";
 	private Label errorMsgLabel = new Label();
 	private String tmpStr=null, removedSymbol;
-	private boolean lock=false;
+	private boolean lock=false, addClicked=false;
 	// private static final String JSON_URL = GWT.getModuleBaseURL() +
 	// "stockPrices?q=";
 
@@ -130,25 +130,23 @@ public class CurrencyMonitor implements EntryPoint {
 		// Setup timer to refresh list automatically.
 		Timer refreshTimer = new Timer() {
 			@Override
-			public void run() {
-				refreshMonitorList();
-			}
+			public void run() { refreshMonitorList(); }
 		};
 		refreshTimer.scheduleRepeating(REFRESH_INTERVAL);
 		
 		// Listen for mouse events on the Add button.
 		addCurrencyButton.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) { addCurrency(); }
+			public void onClick(ClickEvent event) { if(!addClicked) addCurrency(); }
 		});
 		// Listen for keyboard events in the input box.
 		newSymbolTextBox.addKeyDownHandler(new KeyDownHandler() {
 			public void onKeyDown(KeyDownEvent event) {
-				if(event.getNativeKeyCode() == KeyCodes.KEY_ENTER)  addCurrency();
+				if(!addClicked && event.getNativeKeyCode() == KeyCodes.KEY_ENTER) addCurrency();
 			}
 		});
 	}
 	private void addCurrency() {
-		if(lock) return;
+		addClicked=true; if(lock) return;
 		tmpStr = newSymbolTextBox.getText();
 		if(tmpStr==null) return;
 		final String symbol = tmpStr.toUpperCase().trim();
@@ -158,7 +156,6 @@ public class CurrencyMonitor implements EntryPoint {
 			Window.alert("'" + symbol + "' is not a valid symbol.");
 			newSymbolTextBox.selectAll(); return;
 		}
-		newSymbolTextBox.setText("");
 		// Add the currency to the table.
 		if(dollarMap.containsKey(symbol)) {
 			Window.alert(symbol+" exists."); return ;
@@ -175,7 +172,6 @@ public class CurrencyMonitor implements EntryPoint {
 		refreshMonitorList();
 	}
 	synchronized private void refreshMonitorList() {
-		if(dollarMap.size()==0) return;
 		String url = JSON_URL1.concat(YQL_ExchangeRate).concat(JSON_URL2);
 		StringBuilder strBuidler = new StringBuilder();
 		String[] symbols = new String[dollarMap.size()];
@@ -189,13 +185,14 @@ public class CurrencyMonitor implements EntryPoint {
 		// dollarList.forEach(item -> { strBuidler.append("\"").append(baseDollar).append(item).append("\"").append(","); });
 		strBuidler.delete(strBuidler.length() - 1, strBuidler.length());
 //		Window.alert(url);
-		extractJsonData(false,url.replace("$dollars", strBuidler.toString()));
+		extractJsonData(false,url.replace("$dollars", tmpStr));
 		strBuidler.delete(0, strBuidler.length()); strBuidler=null;
 		DateTimeFormat dateFormat = DateTimeFormat.getFormat(DateTimeFormat.PredefinedFormat.DATE_TIME_MEDIUM);
 		lastUpdatedLabel.setText("Last update : " + dateFormat.format(new Date()));
-		errorMsgLabel.setVisible(false);
+		errorMsgLabel.setVisible(false); addClicked=false;
 	}
 	private void setCurrency(int row, JSONObject obj){
+		if(dollarMap.size()==0 && dollarMap.size()!=(currenciesFlexTable.getRowCount()-1)) return;
 		Currency currency=null;
 		try{
 			tmpStr=obj.get("id").isString().stringValue().replace(baseDollar, "").toUpperCase().trim();
@@ -207,7 +204,7 @@ public class CurrencyMonitor implements EntryPoint {
 		} catch (Exception e) {
 			if(removedSymbol==null){dollarMap.remove(tmpStr); currenciesFlexTable.removeRow(row);}
 			removedSymbol=null;
-			Window.alert("No data for " + tmpStr + "OR Web Server in busy.");
+			Window.alert("No data for " + tmpStr + " OR Web Server in busy.");
 		}
 	}
 	private void setRateChangeEffect(int row, Currency currency){
@@ -237,7 +234,7 @@ public class CurrencyMonitor implements EntryPoint {
 		try {
 			Request request = reqBuilder.sendRequest(null, new RequestCallback() {
 				public void onError(Request request, Throwable exception) {
-					displayError("Couldn't retrieve JSON");
+					dollarMap.clear(); lock = false; displayError("Couldn't retrieve JSON");
 				}
 				public void onResponseReceived(Request request, Response response) {
 					if(dollarMap.size()==0 && dollarMap.size()!=(currenciesFlexTable.getRowCount()-1)) return;
@@ -260,16 +257,12 @@ public class CurrencyMonitor implements EntryPoint {
 									}
 								}
 							}
-						}catch(Exception e){ displayError("Data soruce is corrupted. "+e.getMessage()); }
+						}catch(Exception e){ dollarMap.clear(); displayError("Data source is corrupted. "+e.getMessage()); }
 					} else { displayError("Couldn't retrieve data source (" + response.getStatusText() + ")"); }
 					lock = false;
 				}
 			});
-		} catch (RequestException re) {
-			displayError("Couldn't retrieve JSON");
-		} catch (Exception e) {
-			displayError(e.toString());
-		}
+		} catch (Exception e) { dollarMap.clear(); lock = false; displayError("Couldn't retrieve JSON");}
 	}
 	private void appendButtons(final int row){
 //		Add a button to remove this currency from the table.
@@ -277,13 +270,13 @@ public class CurrencyMonitor implements EntryPoint {
 		removeCurrencyButton.addStyleDependentName("remove");
 		removeCurrencyButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				if(lock) return;
+				if(lock || dollarMap.size()==0) return;
 				try{
 					String targetSymbol=currenciesFlexTable.getFlexCellFormatter().getElement(row,0).getInnerText();
 					dollarMap.remove(targetSymbol.trim());
 					currenciesFlexTable.removeRow(row);
 					removedSymbol=targetSymbol;
-				}catch(Exception e){Window.alert(e.getMessage());}
+				}catch(Exception e){displayError(e.getMessage());}
 			}
 		});
 		chartButton.addStyleDependentName("chart");
@@ -306,7 +299,7 @@ public class CurrencyMonitor implements EntryPoint {
 							extractJsonData(true,url);
 						} else { Window.alert("Please select the date range."); }
 					}
-				}catch(Exception e){Window.alert(e.getMessage());}
+				}catch(Exception e){displayError(e.getMessage());}
 			}
 		});
 		currenciesFlexTable.setWidget(row, 3, chartButton);
