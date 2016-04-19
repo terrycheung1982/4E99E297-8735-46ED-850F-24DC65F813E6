@@ -1,10 +1,11 @@
 package com.terrycheung.currencymonitor.client;
 
 import com.terrycheung.currencymonitor.model.Currency;
-import com.terrycheung.currencymonitor.shared.FieldVerifier;
+//import com.terrycheung.currencymonitor.shared.FieldVerifier;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.HashMap;
+
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.dom.client.Style.Cursor;
 import com.google.gwt.event.dom.client.ClickEvent;
@@ -12,11 +13,14 @@ import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyDownEvent;
 import com.google.gwt.event.dom.client.KeyDownHandler;
+import com.google.gwt.event.logical.shared.ValueChangeEvent;
+import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.RequestBuilder;
 import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
+//import com.google.gwt.http.client.UrlBuilder;
 import com.google.gwt.i18n.client.DateTimeFormat;
 import com.google.gwt.i18n.client.NumberFormat;
 import com.google.gwt.json.client.JSONArray;
@@ -27,43 +31,45 @@ import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.FlexTable;
-import com.google.gwt.user.client.ui.HTMLTable.Cell;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
+import com.google.gwt.user.datepicker.client.DatePicker;
 
 public class CurrencyMonitor implements EntryPoint {
-	private static final int REFRESH_INTERVAL = 10000; // ms
+	private static final int REFRESH_INTERVAL = 2000; // ms
 	private VerticalPanel mainPanel = new VerticalPanel();
 	private FlexTable currenciesFlexTable = new FlexTable();
-	private HorizontalPanel addPanel = new HorizontalPanel();
-	private TextBox newSymbolTextBox = new TextBox();
+	private HorizontalPanel addPanel = new HorizontalPanel(),datePanel= new HorizontalPanel();
+	private TextBox newSymbolTextBox = new TextBox(), startDateText=new TextBox(),endDateText=new TextBox() ;
 	private Button addCurrencyButton = new Button("Add");
 	private Label lastUpdatedLabel = new Label();
 	private HashMap<String, Currency> dollarMap = new HashMap<String, Currency>();
 	private static final String JSON_URL1 = "https://query.yahooapis.com/v1/public/yql?q=";
 	private static final String JSON_URL2 = "&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys";
-	private static String sql_hist = "SELECT * FROM yahoo.finance.historicaldata  WHERE symbol=\"$targetDollar=X\" AND startDate=\"$startDate\"  AND endDate=\"$endDate\"";
-	private static final String sql_exchangerate = "SELECT * FROM yahoo.finance.xchange WHERE pair in ($dollars)";
-
+	private static final String YQL_Hist = "SELECT * FROM yahoo.finance.historicaldata WHERE symbol=\"$targetDollar=X\" AND startDate=\"$startDate\" AND endDate=\"$endDate\"";
+	private static final String YQL_ExchangeRate = "SELECT * FROM yahoo.finance.xchange WHERE pair in ($dollars)";
+	private JSONValue HJson=null;
 	private String baseDollar = "HKD";
-	private StringBuilder strBuidler = new StringBuilder();
 	private Label errorMsgLabel = new Label();
-	private String tmpStr=null;
+	private String tmpStr=null, removedSymbol;
+	private boolean lock=false;
 	// private static final String JSON_URL = GWT.getModuleBaseURL() +
 	// "stockPrices?q=";
 
-	/**
-	 * Entry point method.
-	 */
+	public static native void showCurrencyHistory(String value) /*-{
+		$doc.drawChart(value);
+	}-*/;
 	public void onModuleLoad() {
 		// Create table for currency data.
 		currenciesFlexTable.setText(0, 0, "Symbol");
 		currenciesFlexTable.setText(0, 1, "Price");
 		currenciesFlexTable.setText(0, 2, "Change");
-		currenciesFlexTable.setText(0, 3, "Remove");
+		currenciesFlexTable.setText(0, 3, "View");
+		currenciesFlexTable.setText(0, 4, "Remove");
 		// Add styles to elements in the currency list table.
 		currenciesFlexTable.setCellPadding(6);
 		currenciesFlexTable.getRowFormatter().addStyleName(0, "monitorListHeader");
@@ -71,6 +77,7 @@ public class CurrencyMonitor implements EntryPoint {
 		currenciesFlexTable.getCellFormatter().addStyleName(0, 1, "monitorListNumericColumn");
 		currenciesFlexTable.getCellFormatter().addStyleName(0, 2, "monitorListNumericColumn");
 		currenciesFlexTable.getCellFormatter().addStyleName(0, 3, "monitorListRemoveColumn");
+		currenciesFlexTable.getCellFormatter().addStyleName(0, 4, "monitorListRemoveColumn");
 		// Assemble Add currency.
 		addPanel.add(newSymbolTextBox);
 		addPanel.add(addCurrencyButton);
@@ -82,6 +89,38 @@ public class CurrencyMonitor implements EntryPoint {
 		mainPanel.add(currenciesFlexTable);
 		mainPanel.add(addPanel);
 		mainPanel.add(lastUpdatedLabel);
+		
+		Label startDateLabel = new Label("Start Date: ");
+		startDateText.setReadOnly(true);
+        final PopupPanel startDatePopup=new PopupPanel(true);
+        DatePicker startDatePicker=new DatePicker();
+        startDatePicker.addValueChangeHandler(new ValueChangeHandler<Date>() {
+            public void onValueChange(ValueChangeEvent<Date> event) {
+                Date date=event.getValue();
+                startDateText.setText(DateTimeFormat.getFormat("yyyy-MM-dd").format(date));
+                startDatePopup.hide();
+            }
+        });
+        startDatePopup.setWidget(startDatePicker);
+        datePanel.add(startDateLabel);
+        datePanel.add(startDateText);
+        datePanel.add(startDatePopup);
+        Label endDateLabel = new Label("End Date: ");
+		endDateText.setReadOnly(true);
+		final PopupPanel endDatePopup=new PopupPanel(true);
+        DatePicker endDatePicker=new DatePicker();
+        endDatePicker.addValueChangeHandler(new ValueChangeHandler<Date>() {
+            public void onValueChange(ValueChangeEvent<Date> event) {
+                Date date=event.getValue();
+                endDateText.setText(DateTimeFormat.getFormat("yyyy-MM-dd").format(date));
+                endDatePopup.hide();
+            }
+        });
+        endDatePopup.setWidget(endDatePicker);
+        datePanel.add(endDateLabel);
+        datePanel.add(endDateText);
+        datePanel.add(endDatePopup);
+        mainPanel.add(datePanel);
 		// Associate the Main panel with the HTML host page.
 		RootPanel.get("currencyMonitorList").add(mainPanel);
 
@@ -96,12 +135,7 @@ public class CurrencyMonitor implements EntryPoint {
 			}
 		};
 		refreshTimer.scheduleRepeating(REFRESH_INTERVAL);
-		currenciesFlexTable.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) {
-				Cell cell = currenciesFlexTable.getCellForEvent(event);
-	            if(cell.getCellIndex()==0) Window.open("CurrencyHistory.html?currency="+currenciesFlexTable.getFlexCellFormatter().getElement(cell.getRowIndex(),0).getInnerText(), "_blank", "");
-	        }
-	    });
+		
 		// Listen for mouse events on the Add button.
 		addCurrencyButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) { addCurrency(); }
@@ -109,13 +143,12 @@ public class CurrencyMonitor implements EntryPoint {
 		// Listen for keyboard events in the input box.
 		newSymbolTextBox.addKeyDownHandler(new KeyDownHandler() {
 			public void onKeyDown(KeyDownEvent event) {
-				if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER)
-					addCurrency();
+				if(event.getNativeKeyCode() == KeyCodes.KEY_ENTER)  addCurrency();
 			}
 		});
 	}
-
 	private void addCurrency() {
+		if(lock) return;
 		tmpStr = newSymbolTextBox.getText();
 		if(tmpStr==null) return;
 		final String symbol = tmpStr.toUpperCase().trim();
@@ -137,86 +170,34 @@ public class CurrencyMonitor implements EntryPoint {
 		currenciesFlexTable.getCellFormatter().addStyleName(row, 1, "monitorListNumericColumn");
 		currenciesFlexTable.getCellFormatter().addStyleName(row, 2, "monitorListNumericColumn");
 		currenciesFlexTable.getCellFormatter().addStyleName(row, 3, "monitorListRemoveColumn");
-		// Add a button to remove this currency from the table.
-		Button removeCurrencyButton = new Button("x");
-		removeCurrencyButton.addStyleDependentName("remove");
-		removeCurrencyButton.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) {
-				Iterator<String> keys = dollarMap.keySet().iterator();
-				int x = 0;
-				while(keys.hasNext()) {
-					x++; if(symbol.equals(keys.next())) break;
-				}
-				dollarMap.remove(symbol);
-				currenciesFlexTable.removeRow(x);
-			}
-		});
-		currenciesFlexTable.setWidget(row, 3, removeCurrencyButton);
+		currenciesFlexTable.getCellFormatter().addStyleName(row, 4, "monitorListRemoveColumn");
 		// Get the currency price.
 		refreshMonitorList();
 	}
-
-	private void refreshMonitorList() {
+	synchronized private void refreshMonitorList() {
 		if(dollarMap.size()==0) return;
-		String url = JSON_URL1.concat(sql_exchangerate).concat(JSON_URL2);
-		strBuidler.delete(0, strBuidler.length());
-		Iterator<String> keys = dollarMap.keySet().iterator();
+		String url = JSON_URL1.concat(YQL_ExchangeRate).concat(JSON_URL2);
+		StringBuilder strBuidler = new StringBuilder();
 		String[] symbols = new String[dollarMap.size()];
+		Iterator<String> keys = dollarMap.keySet().iterator();
 		int x = 0;
 		while(keys.hasNext()) {
 			symbols[x] = keys.next();
 			strBuidler.append("\"").append(baseDollar).append(symbols[x]).append("\"").append(",");
 			x++;
 		}
-		// dollarList.forEach(item -> {
-		// strBuidler.append("\"").append(baseDollar).append(item).append("\"").append(",");
-		// });
+		// dollarList.forEach(item -> { strBuidler.append("\"").append(baseDollar).append(item).append("\"").append(","); });
 		strBuidler.delete(strBuidler.length() - 1, strBuidler.length());
-		url = url.replace("$dollars", strBuidler.toString());
 //		Window.alert(url);
-		RequestBuilder reqBuilder = new RequestBuilder(RequestBuilder.GET, url);
-		// CurrencyPrice[] prices=null;
-		try {
-			Request request = reqBuilder.sendRequest(null, new RequestCallback() {
-				public void onError(Request request, Throwable exception) {
-					displayError("Couldn't retrieve JSON");
-				}
-
-				public void onResponseReceived(Request request, Response response) {
-					if (200 == response.getStatusCode()) {
-						JSONObject[] queryObj = new JSONObject[4];
-						JSONValue value = JSONParser.parseStrict(response.getText());
-						queryObj[0] = value.isObject();
-						queryObj[1] = queryObj[0].get("query").isObject();
-						queryObj[2] = queryObj[1].get("results").isObject();
-						value = queryObj[2].get("rate");
-						JSONArray queryObjs=null;
-						if ((queryObj[3]=value.isObject()) != null) {
-							setCurrency(1, queryObj[3]);
-						} else if((queryObjs=value.isArray()) != null) {
-							for(int i=0; i<=queryObjs.size()-1; i++) {
-								if((queryObj[3] = queryObjs.get(i).isObject()) != null) setCurrency(i+1, queryObj[3]);
-							}
-						}
-						// updateTable(JsonUtils.<JsArray<CurrencyPrice>>
-						// safeEval(response.getText()));
-					} else {
-						displayError("Couldn't retrieve JSON (" + response.getStatusText() + ")");
-					}
-				}
-			});
-		} catch (RequestException re) {
-			displayError("Couldn't retrieve JSON");
-		} catch (Exception e) {
-			displayError(e.toString());
-		}
+		extractJsonData(false,url.replace("$dollars", strBuidler.toString()));
+		strBuidler.delete(0, strBuidler.length()); strBuidler=null;
 		DateTimeFormat dateFormat = DateTimeFormat.getFormat(DateTimeFormat.PredefinedFormat.DATE_TIME_MEDIUM);
 		lastUpdatedLabel.setText("Last update : " + dateFormat.format(new Date()));
 		errorMsgLabel.setVisible(false);
 	}
 	private void setCurrency(int row, JSONObject obj){
 		Currency currency=null;
-		try{ 
+		try{
 			tmpStr=obj.get("id").isString().stringValue().replace(baseDollar, "").toUpperCase().trim();
 			currency = dollarMap.get(tmpStr);
 			currency.setRate(Double.parseDouble(obj.get("Rate").isString().stringValue()));
@@ -224,26 +205,112 @@ public class CurrencyMonitor implements EntryPoint {
 			currency.setTime(obj.get("Time").isString().stringValue());
 			setRateChangeEffect(row,currency);
 		} catch (Exception e) {
-			dollarMap.remove(tmpStr); currenciesFlexTable.removeRow(row);
-			Window.alert("No data for " + tmpStr);
+			if(removedSymbol==null){dollarMap.remove(tmpStr); currenciesFlexTable.removeRow(row);}
+			removedSymbol=null;
+			Window.alert("No data for " + tmpStr + "OR Web Server in busy.");
 		}
 	}
 	private void setRateChangeEffect(int row, Currency currency){
 		// Format the data in the Price and Change fields.
 		double change = currency.getRate() - currency.getPreviousRate();
-		double changePercentage = 100.00 * change / currency.getRate();
-		NumberFormat changeFormat = NumberFormat.getFormat("+#,##0.00;-#,##0.00");
+		double changePercentage = 100.00 * (change / currency.getRate());
+		NumberFormat changeFormat = NumberFormat.getFormat("+#,##0.0000;-#,##0.0000");
 		// Populate the Price and Change fields with new data.
 		currenciesFlexTable.setText(row, 1, NumberFormat.getFormat("#,##0.0000").format(currency.getRate()));
-		Label changePercentLabel = new Label("0.00");
+		Label changePercentLabel = new Label("0.0000 (0.00%)");
 		// Change the color of text in the Change field based on its value.
 		String changeStyleName = "noChange";
-		if(change!=1.00){
+		//Should not use change!=100.00
+		if(currency.getPreviousRate()!=0 && currency.getRate()!=currency.getPreviousRate()){
 			changeStyleName = ((change<-0.01f)?"negativeChange":"positiveChange");
 			changePercentLabel.setText(changeFormat.format(change) + " (" + changeFormat.format(changePercentage) + "%)");
 		}
 		changePercentLabel.setStyleName(changeStyleName);
 		currenciesFlexTable.setWidget(row, 2, changePercentLabel);
+		appendButtons(row);
+		currency.setPreviousRate(currency.getRate());
+	}
+	synchronized private void extractJsonData(final boolean isHistorical,String url){
+		lock = true;
+		RequestBuilder reqBuilder = new RequestBuilder(RequestBuilder.GET, url);
+		reqBuilder.setTimeoutMillis(REFRESH_INTERVAL+2000);
+		try {
+			Request request = reqBuilder.sendRequest(null, new RequestCallback() {
+				public void onError(Request request, Throwable exception) {
+					displayError("Couldn't retrieve JSON");
+				}
+				public void onResponseReceived(Request request, Response response) {
+					if(dollarMap.size()==0 && dollarMap.size()!=(currenciesFlexTable.getRowCount()-1)) return;
+					if (200 == response.getStatusCode()) {
+						JSONObject[] queryObj = new JSONObject[4];
+						try{
+							JSONValue value = JSONParser.parseStrict(response.getText());
+							queryObj[0] = value.isObject();
+							queryObj[1] = queryObj[0].get("query").isObject();
+							queryObj[2] = queryObj[1].get("results").isObject();
+							JSONArray queryArray=null;
+							if(isHistorical){ HJson=queryObj[2].get("quote"); showCurrencyHistory(HJson.toString());}
+							else{
+								value=queryObj[2].get("rate");
+								if((queryObj[3]=value.isObject()) != null) {
+									setCurrency(1, queryObj[3]);
+								} else if((queryArray=value.isArray()) != null) {
+									for(int i=0; i<=queryArray.size()-1; i++) {
+										if((queryObj[3] = queryArray.get(i).isObject()) != null) setCurrency(i+1, queryObj[3]);
+									}
+								}
+							}
+						}catch(Exception e){ displayError("Data soruce is corrupted. "+e.getMessage()); }
+					} else { displayError("Couldn't retrieve data source (" + response.getStatusText() + ")"); }
+					lock = false;
+				}
+			});
+		} catch (RequestException re) {
+			displayError("Couldn't retrieve JSON");
+		} catch (Exception e) {
+			displayError(e.toString());
+		}
+	}
+	private void appendButtons(final int row){
+//		Add a button to remove this currency from the table.
+		Button removeCurrencyButton = new Button("x"), chartButton = new Button("View Chart");
+		removeCurrencyButton.addStyleDependentName("remove");
+		removeCurrencyButton.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+				if(lock) return;
+				try{
+					String targetSymbol=currenciesFlexTable.getFlexCellFormatter().getElement(row,0).getInnerText();
+					dollarMap.remove(targetSymbol.trim());
+					currenciesFlexTable.removeRow(row);
+					removedSymbol=targetSymbol;
+				}catch(Exception e){Window.alert(e.getMessage());}
+			}
+		});
+		chartButton.addStyleDependentName("chart");
+		chartButton.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+				if(lock) return;
+//				UrlBuilder builder = Window.Location.createUrlBuilder();
+//				builder.setHash("ddasd"); builder.setParameter("currency", "");
+//				Window.Location.assign(builder.buildString());
+//	            if(cell.getCellIndex()==0) Window.open("CurrencyHistory.html?currency="+currenciesFlexTable.getFlexCellFormatter().getElement(cell.getRowIndex(),0).getInnerText(), "_blank", "");
+				String symbol=null;
+				try{
+					symbol=currenciesFlexTable.getFlexCellFormatter().getElement(row,0).getInnerText();
+					if(!symbol.equals("") && !symbol.equals("USD")){
+						if(startDateText.getText()!=null && endDateText.getText()!=null && !startDateText.getText().equals("") && !endDateText.getText().equals("")){
+							String url = JSON_URL1.concat(YQL_Hist).concat(JSON_URL2);
+							url = url.replace("$targetDollar", symbol);
+							url = url.replace("$startDate",startDateText.getText());
+							url = url.replace("$endDate",endDateText.getText());
+							extractJsonData(true,url);
+						} else { Window.alert("Please select the date range."); }
+					}
+				}catch(Exception e){Window.alert(e.getMessage());}
+			}
+		});
+		currenciesFlexTable.setWidget(row, 3, chartButton);
+		currenciesFlexTable.setWidget(row, 4, removeCurrencyButton);
 	}
 	private void displayError(String error) {
 		errorMsgLabel.setText("Error: " + error);

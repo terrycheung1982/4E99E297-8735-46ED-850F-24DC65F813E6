@@ -35,6 +35,9 @@ body {
 .gwt-Button-remove {
       width: 50px;
 }
+.gwt-Button-chart {
+      width: 100px;
+}
 /* Dynamic color changes for the Change field */
 .noChange {
   color: black;

@@ -5,10 +5,52 @@
     <link type="text/css" rel="stylesheet" href="CurrencyMonitor.css">
     <title>Currency Monitor</title>
     <script src="currencymonitor/currencymonitor.nocache.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+      google.charts.load('current', {'packages':['line']});
+      /*google.charts.setOnLoadCallback(drawChart);*/
+      document.drawChart=function(value) {
+/**
+        {
+        "Symbol": "HKD%3dX",
+        "Date": "2016-04-04",
+        "Open": "7.7533",
+        "High": "7.75557",
+        "Low": "7.7529",
+        "Close": "7.75403",
+        "Volume": "000",
+        "Adj_Close": "7.75403"
+       }
+**/
+    	  var objs = JSON.parse(value);
+    	  var displayObj=new Array();
+    	  try{
+	    	  for(var i=0; i<objs.length; i++) {
+	    		  displayObj.push([parseInt(objs[i].Date.substring(8,10)),parseFloat(objs[i].High),parseFloat(objs[i].Low)]);
+	    	  }
+	    	  var data = new google.visualization.DataTable();
+	    	  data.addColumn('number', 'Day');
+	    	  data.addColumn('number', 'High');
+	    	  data.addColumn('number', 'Low');
+	    	  data.addRows(displayObj);
+	    	  var options = {
+	    	    chart: {
+	    		  title: 'Box Office Earnings in First Two Weeks of Opening',
+	    		  subtitle: 'in millions of dollars (USD)'
+	    		},
+	    		width: 900, height: 500
+	    	  };
+	   		  var chart = new google.charts.Line(document.getElementById('HistoryChart'));
+	   		  chart.draw(data, options);
+    	  }catch(err){ console.log(err.getMessage());}
+   	  }
+    </script>
   </head>
   <body>
     <img src="images/GoogleCode.png" />
     <h1>Currency Monitor - HKD Based</h1>
+    <div>
+    <div id="HistoryChart"></div>
     <div id="currencyMonitorList"></div>
     </div>
   </body>

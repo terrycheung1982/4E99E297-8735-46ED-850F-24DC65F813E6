@@ -1,26 +1,26 @@
 package com.terrycheung.currencymonitor.model;
 
 //{
-//	 "query": {
-//	  "count": 1,
-//	  "created": "2016-04-16T11:52:01Z",
-//	  "lang": "zh-TW",
-//	  "results": {
-//	   "rate": {
-//	    "id": "HKDUSD",
-//	    "Name": "HKD/USD",
-//	    "Rate": "0.1289",
-//	    "Date": "4/16/2016",
-//	    "Time": "1:35am",
-//	    "Ask": "0.1290",
-//	    "Bid": "0.1289"
-//	   }
-//	  }
-//	 }
+// "query": {
+//  "count": 1,
+//  "created": "2016-04-16T11:52:01Z",
+//  "lang": "zh-TW",
+//  "results": {
+//   "rate": {
+//    "id": "HKDUSD",
+//    "Name": "HKD/USD",
+//    "Rate": "0.1289",
+//    "Date": "4/16/2016",
+//    "Time": "1:35am",
+//    "Ask": "0.1290",
+//    "Bid": "0.1289"
+//   }
+//  }
+// }
 //}
 public class Currency {
 	private String name,date,time;
-	private double previousRate, rate;
+	private double previousRate=0.0000, rate=0.0000;
 	
 	public Currency() { }
 	
