@@ -35,14 +35,18 @@
 	    	  data.addRows(displayObj);
 	    	  var options = {
 	    	    chart: {
-	    		  title: 'Box Office Earnings in First Two Weeks of Opening',
-	    		  subtitle: 'in millions of dollars (USD)'
+	    		  title: 'Historical Foreign Exchange Rate',
+	    		  subtitle: objs[0].Symbol.substring(0,3)+' in term of USD',
+	    		  hAxis: { 
+	    			viewWindowMode:'explicit',viewWindow: {max:32,min:7},
+	    			maxAlternation:1
+	    	      }
 	    		},
-	    		width: 900, height: 500
+	    		width: 1200, height: 500
 	    	  };
 	   		  var chart = new google.charts.Line(document.getElementById('HistoryChart'));
 	   		  chart.draw(data, options);
-    	  }catch(err){ console.log(err.getMessage());}
+    	  }catch(err){ console.log(err);}
    	  }
     </script>
   </head>
